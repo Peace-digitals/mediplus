@@ -71,4 +71,4 @@ jobs:
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{\"text\":\"❌ Deployment failed for *Medplus* (Run #${{ github.run_number }})! Please check logs.\"}" \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          ${{ secrets.S }}
