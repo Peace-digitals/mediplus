@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Correct AWS authentication
+      # AWS authentication
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -30,57 +30,30 @@ jobs:
 
       - name: Build and push Docker image to ECR
         run: |
-          docker build -t medplus:${{ github.run_number }} .
-          docker tag medplus:${{ github.run_number }} \
-            016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}
-          docker push \
-            016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}
+          IMAGE_URI=medplus:${{ github.run_number }}
+          docker build -t $IMAGE_URI .
+          docker tag $IMAGE_URI 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}
+          docker push 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}
 
   deploy:
     runs-on: ubuntu-latest
     needs: build-push
 
     steps:
-      - name: Setup SSH key
-       
-       deploy:
-  runs-on: ubuntu-latest
-  needs: build-push
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "echo 'Connected successfully'"
 
-  steps:
-    - name: Configure SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "echo 'Connected successfully'"
+      - name: Deploy container on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+            "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
 
-    - name: Deploy container on EC2
-      run: |
-        # Pull latest Docker image from ECR
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-          "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+            "docker rm -f medplus || true"
 
-        # Stop and remove old container
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-          "docker rm -f medplus || true"
-
-        # Run new container
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-          "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
-
-      # Slack Success Notification (optional)
-      # - name: Notify Slack of successful deployment
-      #   if: success()
-      #   run: |
-      #     curl -X POST -H 'Content-type: application/json' \
-      #     --data "{\"text\":\"Deployment successful for Medplus (Run #${{ github.run_number }})\"}" \
-      #     ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      # Slack Failure Notification (optional)
-      # - name: Notify Slack if deployment fails
-      #   if: failure()
-      #   run: |
-      #     curl -X POST -H 'Content-type: application/json' \
-      #     --data "{\"text\":\"Deployment FAILED for Medplus (Run #${{ github.run_number }})\"}" \
-      #     ${{ secrets.SLACK_WEBHOOK_URL }}
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+            "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
