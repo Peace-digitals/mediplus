@@ -42,23 +42,32 @@ jobs:
 
     steps:
       - name: Setup SSH key
-        run: |
-          echo "${{ secrets.SSH_KEY }}" > key1.pem
-          chmod 600 key1.pem
+       
+       deploy:
+  runs-on: ubuntu-latest
+  needs: build-push
 
-      - name: Deploy container on EC2
-        run: |
-          # Pull latest Docker image from ECR
-          ssh -o StrictHostKeyChecking=no -i key1.pem ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
+  steps:
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "echo 'Connected successfully'"
 
-          # Stop and remove old container
-          ssh -o StrictHostKeyChecking=no -i key1.pem ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker rm -f medplus || true"
+    - name: Deploy container on EC2
+      run: |
+        # Pull latest Docker image from ECR
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
 
-          # Run new container
-          ssh -o StrictHostKeyChecking=no -i key1.pem ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
+        # Stop and remove old container
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker rm -f medplus || true"
+
+        # Run new container
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
 
       # Slack Success Notification (optional)
       # - name: Notify Slack of successful deployment
