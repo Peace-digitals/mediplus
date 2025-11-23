@@ -3,23 +3,20 @@ deploy:
   needs: build-push
 
   steps:
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.SERVER_IP }} "echo 'SSH connected successfully'"
+    - name: Configure SSH correctly
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} "echo Connected"
 
-      - name: Deploy container on EC2
-        run: |
-          # Pull latest Docker image from ECR
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
+    - name: Deploy container on EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker pull 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
 
-          # Stop and remove old container
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker rm -f medplus || true"
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker rm -f medplus || true"
 
-          # Run new container
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
-            "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USERNAME }}@${{ secrets.SERVER_IP }} \
+          "docker run -d --name medplus -p 80:80 016099143485.dkr.ecr.us-east-1.amazonaws.com/medplus:${{ github.run_number }}"
